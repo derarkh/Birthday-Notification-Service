@@ -1,6 +1,4 @@
-import { execSync } from 'node:child_process';
-
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildOccurrenceIdempotencyKey } from '../domain/idempotency.js';
 import { PostgresNotificationOccurrenceRepository } from '../infrastructure/db/notification-occurrence-repository.js';
@@ -16,16 +14,6 @@ testSuite('notification occurrence integration', () => {
   const pool = createPool(dbUrl);
   const userRepository = new PostgresUserRepository(pool);
   const occurrenceRepository = new PostgresNotificationOccurrenceRepository(pool);
-
-  beforeAll(() => {
-    execSync('npm run db:migrate', {
-      stdio: 'inherit',
-      env: {
-        ...process.env,
-        DATABASE_URL: dbUrl
-      }
-    });
-  });
 
   beforeEach(async () => {
     await pool.query('TRUNCATE TABLE notification_occurrences, users CASCADE');

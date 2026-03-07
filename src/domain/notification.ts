@@ -24,6 +24,12 @@ export interface CreateOrGetOccurrenceInput {
   dueAtUtc: Date;
 }
 
+export interface ClaimDueOccurrencesInput {
+  now: Date;
+  lookbackHours: number;
+  batchSize: number;
+}
+
 export interface NotificationOccurrenceRepository {
   createOrGet(input: CreateOrGetOccurrenceInput): Promise<NotificationOccurrence>;
   findByLogicalKey(
@@ -31,4 +37,6 @@ export interface NotificationOccurrenceRepository {
     occasionType: OccasionType,
     localOccurrenceDate: string
   ): Promise<NotificationOccurrence | null>;
+  claimDueForEnqueue(input: ClaimDueOccurrencesInput): Promise<NotificationOccurrence[]>;
+  markEnqueueFailed(occurrenceId: string, errorMessage: string): Promise<void>;
 }

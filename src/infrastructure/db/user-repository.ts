@@ -2,7 +2,12 @@ import { randomUUID } from 'node:crypto';
 
 import type { Pool } from 'pg';
 
-import type { CreateUserInput, User, UserRepository } from '../../domain/user.js';
+import type {
+  CreateUserInput,
+  PlanningUser,
+  User,
+  UserRepository
+} from '../../domain/user.js';
 
 interface UserRow {
   id: string;
@@ -62,5 +67,32 @@ export class PostgresUserRepository implements UserRepository {
     );
 
     return result.rowCount > 0;
+  }
+
+  public async listActiveForPlanning(input: {
+    afterId: string | null;
+    limit: number;
+  }): Promise<PlanningUser[]> {
+    const result = await this.pool.query<{
+      id: string;
+      birthday: string;
+      timezone: string;
+    }>(
+      `
+      SELECT id, birthday::text AS birthday, timezone
+      FROM users
+      WHERE deleted_at IS NULL
+        AND ($1::uuid IS NULL OR id > $1)
+      ORDER BY id ASC
+      LIMIT $2
+      `,
+      [input.afterId, Math.max(1, input.limit)]
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      birthday: row.birthday,
+      timezone: row.timezone
+    }));
   }
 }

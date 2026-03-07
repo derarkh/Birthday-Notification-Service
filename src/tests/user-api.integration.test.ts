@@ -1,6 +1,4 @@
-import { execSync } from 'node:child_process';
-
-import { beforeAll, beforeEach, afterAll, describe, expect, it } from 'vitest';
+import { beforeEach, afterAll, describe, expect, it } from 'vitest';
 
 import { buildApp } from '../app/api/app.js';
 import { createPool } from '../infrastructure/db/pool.js';
@@ -15,16 +13,6 @@ testSuite('user API integration', () => {
   const pool = createPool(dbUrl);
   const repository = new PostgresUserRepository(pool);
   const app = buildApp({ userRepository: repository });
-
-  beforeAll(() => {
-    execSync('npm run db:migrate', {
-      stdio: 'inherit',
-      env: {
-        ...process.env,
-        DATABASE_URL: dbUrl
-      }
-    });
-  });
 
   beforeEach(async () => {
     await pool.query('TRUNCATE TABLE notification_occurrences, users CASCADE');

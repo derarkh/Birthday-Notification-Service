@@ -77,6 +77,10 @@ npm run lint
 npm run test
 npm run test:integration
 ```
+Planner SQS LocalStack integration test is optional and gated:
+```bash
+RUN_INTEGRATION=true RUN_AWS_INTEGRATION=true npm run test src/tests/sqs-delivery-queue.integration.test.ts
+```
 
 ## Run scaffold processes
 ```bash
@@ -85,7 +89,8 @@ npm run dev:planner
 npm run dev:worker
 ```
 
-`dev:planner` and `dev:worker` are placeholders in Slice 1.
+`dev:planner` is implemented and polls for due/missed occurrences.
+`dev:worker` is still a placeholder.
 
 ## Database migration wiring
 Migration commands:

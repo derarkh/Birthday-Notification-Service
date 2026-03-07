@@ -4,6 +4,7 @@ import type { Pool } from 'pg';
 
 import { buildOccurrenceIdempotencyKey } from '../../domain/idempotency.js';
 import type {
+  ClaimDueOccurrencesInput,
   CreateOrGetOccurrenceInput,
   NotificationOccurrence,
   NotificationOccurrenceRepository,
@@ -129,5 +130,64 @@ export class PostgresNotificationOccurrenceRepository implements NotificationOcc
 
     const row = result.rows[0] ?? null;
     return row ? mapRow(row) : null;
+  }
+
+  public async claimDueForEnqueue(input: ClaimDueOccurrencesInput): Promise<NotificationOccurrence[]> {
+    const lookbackFrom = new Date(input.now.getTime() - input.lookbackHours * 60 * 60 * 1000);
+    const normalizedBatchSize = Math.max(1, input.batchSize);
+
+    const result = await this.pool.query<NotificationOccurrenceRow>(
+      `
+      WITH candidates AS (
+        SELECT n.id
+        FROM notification_occurrences n
+        INNER JOIN users u
+          ON u.id = n.user_id
+        WHERE n.status IN ('pending', 'failed')
+          AND n.due_at_utc <= $1
+          AND n.due_at_utc >= $2
+          AND u.deleted_at IS NULL
+        ORDER BY n.due_at_utc ASC, n.id ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT $3
+      )
+      UPDATE notification_occurrences n
+      SET status = 'enqueued',
+          enqueued_at = $1,
+          updated_at = $1,
+          last_error = NULL
+      FROM candidates
+      WHERE n.id = candidates.id
+      RETURNING
+        n.id,
+        n.user_id,
+        n.occasion_type,
+        n.local_occurrence_date::text AS local_occurrence_date,
+        n.due_at_utc,
+        n.status,
+        n.idempotency_key,
+        n.enqueued_at,
+        n.sent_at,
+        n.last_error,
+        n.created_at,
+        n.updated_at
+      `,
+      [input.now, lookbackFrom, normalizedBatchSize]
+    );
+
+    return result.rows.map(mapRow);
+  }
+
+  public async markEnqueueFailed(occurrenceId: string, errorMessage: string): Promise<void> {
+    await this.pool.query(
+      `
+      UPDATE notification_occurrences
+      SET status = 'failed',
+          last_error = $2,
+          updated_at = NOW()
+      WHERE id = $1
+      `,
+      [occurrenceId, errorMessage.slice(0, 2000)]
+    );
   }
 }

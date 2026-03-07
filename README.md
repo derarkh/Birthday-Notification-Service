@@ -4,10 +4,10 @@ TypeScript Node.js service scaffold for timezone-safe birthday notifications.
 
 This Slice 1 baseline provides:
 - strict TypeScript project setup
-- Fastify runtime scaffold with `GET /health`
+- Fastify API scaffold with user endpoints
 - lint/typecheck/test tooling
 - PostgreSQL + LocalStack (SQS) local dependencies via Docker Compose
-- migration wiring with `node-pg-migrate` (no tables yet)
+- migration wiring with `node-pg-migrate`
 
 ## Stack
 - Node.js + TypeScript
@@ -75,6 +75,7 @@ aws --endpoint-url=http://localhost:4566 --region ap-southeast-2 sqs create-queu
 npm run typecheck
 npm run lint
 npm run test
+npm run test:integration
 ```
 
 ## Run scaffold processes
@@ -87,15 +88,46 @@ npm run dev:worker
 `dev:planner` and `dev:worker` are placeholders in Slice 1.
 
 ## Database migration wiring
-No schema migration is included in Slice 1.
-
-Migration commands are wired for upcoming slices:
+Migration commands:
 ```bash
 npm run db:migrate
 npm run db:migrate:down
 ```
 
-## Current API surface in Slice 1
-- `GET /health` for scaffold verification
+## Current API surface
+- `POST /user`
+- `DELETE /user`
 
-`POST /user` and `DELETE /user` are planned for Slice 2.
+### POST /user
+Request body:
+```json
+{
+  "firstName": "Derar",
+  "lastName": "Alkhateeb",
+  "birthday": "1990-03-07",
+  "timezone": "Australia/Melbourne"
+}
+```
+
+Response `201`:
+```json
+{
+  "id": "uuid",
+  "firstName": "Derar",
+  "lastName": "Alkhateeb",
+  "birthday": "1990-03-07",
+  "timezone": "Australia/Melbourne"
+}
+```
+
+### DELETE /user
+Request body:
+```json
+{
+  "id": "uuid"
+}
+```
+
+Responses:
+- `204` when deleted
+- `404` when user does not exist

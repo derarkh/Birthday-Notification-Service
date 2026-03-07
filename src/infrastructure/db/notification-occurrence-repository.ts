@@ -4,6 +4,7 @@ import type { Pool } from 'pg';
 
 import { buildOccurrenceIdempotencyKey } from '../../domain/idempotency.js';
 import type {
+  ClaimedDeliveryOccurrence,
   ClaimDueOccurrencesInput,
   CreateOrGetOccurrenceInput,
   NotificationOccurrence,
@@ -24,6 +25,11 @@ interface NotificationOccurrenceRow {
   last_error: string | null;
   created_at: Date;
   updated_at: Date;
+}
+
+interface DeliveryClaimRow extends NotificationOccurrenceRow {
+  first_name: string;
+  last_name: string;
 }
 
 function mapRow(row: NotificationOccurrenceRow): NotificationOccurrence {
@@ -176,6 +182,84 @@ export class PostgresNotificationOccurrenceRepository implements NotificationOcc
     );
 
     return result.rows.map(mapRow);
+  }
+
+  public async claimForDelivery(
+    occurrenceId: string,
+    now: Date
+  ): Promise<ClaimedDeliveryOccurrence | null> {
+    const result = await this.pool.query<DeliveryClaimRow>(
+      `
+      UPDATE notification_occurrences n
+      SET status = 'processing',
+          updated_at = $2
+      FROM users u
+      WHERE n.id = $1
+        AND n.user_id = u.id
+        AND u.deleted_at IS NULL
+        AND n.status = 'enqueued'
+        AND n.sent_at IS NULL
+      RETURNING
+        n.id,
+        n.user_id,
+        n.occasion_type,
+        n.local_occurrence_date::text AS local_occurrence_date,
+        n.due_at_utc,
+        n.status,
+        n.idempotency_key,
+        n.enqueued_at,
+        n.sent_at,
+        n.last_error,
+        n.created_at,
+        n.updated_at,
+        u.first_name,
+        u.last_name
+      `,
+      [occurrenceId, now]
+    );
+
+    const row = result.rows[0] ?? null;
+    if (!row) {
+      return null;
+    }
+
+    return {
+      occurrence: mapRow(row),
+      firstName: row.first_name,
+      lastName: row.last_name
+    };
+  }
+
+  public async markSent(occurrenceId: string, now: Date): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+      UPDATE notification_occurrences
+      SET status = 'sent',
+          sent_at = $2,
+          updated_at = $2,
+          last_error = NULL
+      WHERE id = $1
+        AND status = 'processing'
+        AND sent_at IS NULL
+      `,
+      [occurrenceId, now]
+    );
+
+    return result.rowCount > 0;
+  }
+
+  public async markDeliveryFailed(occurrenceId: string, errorMessage: string): Promise<void> {
+    await this.pool.query(
+      `
+      UPDATE notification_occurrences
+      SET status = 'failed',
+          last_error = $2,
+          updated_at = NOW()
+      WHERE id = $1
+        AND status = 'processing'
+      `,
+      [occurrenceId, errorMessage.slice(0, 2000)]
+    );
   }
 
   public async markEnqueueFailed(occurrenceId: string, errorMessage: string): Promise<void> {

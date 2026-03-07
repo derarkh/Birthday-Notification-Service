@@ -11,6 +11,10 @@ export interface AppConfig {
   sqsBirthdayQueueUrl: string;
   awsAccessKeyId: string | null;
   awsSecretAccessKey: string | null;
+  outboundBaseUrl: string;
+  workerPollIntervalSeconds: number;
+  workerSqsWaitTimeSeconds: number;
+  workerSqsMaxMessages: number;
 }
 
 export function loadConfig(): AppConfig {
@@ -26,12 +30,19 @@ export function loadConfig(): AppConfig {
   const sqsBirthdayQueueUrl = process.env.SQS_BIRTHDAY_QUEUE_URL;
   const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID ?? null;
   const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY ?? null;
+  const outboundBaseUrl = process.env.OUTBOUND_BASE_URL;
+  const workerPollIntervalSeconds = Number(process.env.WORKER_POLL_INTERVAL_SECONDS ?? 5);
+  const workerSqsWaitTimeSeconds = Number(process.env.WORKER_SQS_WAIT_TIME_SECONDS ?? 10);
+  const workerSqsMaxMessages = Number(process.env.WORKER_SQS_MAX_MESSAGES ?? 10);
 
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');
   }
   if (!sqsBirthdayQueueUrl) {
     throw new Error('SQS_BIRTHDAY_QUEUE_URL is required');
+  }
+  if (!outboundBaseUrl) {
+    throw new Error('OUTBOUND_BASE_URL is required');
   }
 
   if (!Number.isInteger(port) || port <= 0) {
@@ -49,6 +60,15 @@ export function loadConfig(): AppConfig {
   if (!Number.isInteger(plannerPollIntervalSeconds) || plannerPollIntervalSeconds <= 0) {
     throw new Error('PLANNER_POLL_INTERVAL_SECONDS must be a positive integer');
   }
+  if (!Number.isInteger(workerPollIntervalSeconds) || workerPollIntervalSeconds <= 0) {
+    throw new Error('WORKER_POLL_INTERVAL_SECONDS must be a positive integer');
+  }
+  if (!Number.isInteger(workerSqsWaitTimeSeconds) || workerSqsWaitTimeSeconds <= 0) {
+    throw new Error('WORKER_SQS_WAIT_TIME_SECONDS must be a positive integer');
+  }
+  if (!Number.isInteger(workerSqsMaxMessages) || workerSqsMaxMessages <= 0) {
+    throw new Error('WORKER_SQS_MAX_MESSAGES must be a positive integer');
+  }
 
   return {
     port,
@@ -62,6 +82,10 @@ export function loadConfig(): AppConfig {
     awsEndpointUrl,
     sqsBirthdayQueueUrl,
     awsAccessKeyId,
-    awsSecretAccessKey
+    awsSecretAccessKey,
+    outboundBaseUrl,
+    workerPollIntervalSeconds,
+    workerSqsWaitTimeSeconds,
+    workerSqsMaxMessages
   };
 }

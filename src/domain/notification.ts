@@ -1,6 +1,6 @@
 export type OccasionType = 'birthday';
 
-export type NotificationOccurrenceStatus = 'pending' | 'enqueued' | 'sent' | 'failed';
+export type NotificationOccurrenceStatus = 'pending' | 'enqueued' | 'processing' | 'sent' | 'failed';
 
 export interface NotificationOccurrence {
   id: string;
@@ -30,6 +30,12 @@ export interface ClaimDueOccurrencesInput {
   batchSize: number;
 }
 
+export interface ClaimedDeliveryOccurrence {
+  occurrence: NotificationOccurrence;
+  firstName: string;
+  lastName: string;
+}
+
 export interface NotificationOccurrenceRepository {
   createOrGet(input: CreateOrGetOccurrenceInput): Promise<NotificationOccurrence>;
   findByLogicalKey(
@@ -38,5 +44,8 @@ export interface NotificationOccurrenceRepository {
     localOccurrenceDate: string
   ): Promise<NotificationOccurrence | null>;
   claimDueForEnqueue(input: ClaimDueOccurrencesInput): Promise<NotificationOccurrence[]>;
+  claimForDelivery(occurrenceId: string, now: Date): Promise<ClaimedDeliveryOccurrence | null>;
+  markSent(occurrenceId: string, now: Date): Promise<boolean>;
+  markDeliveryFailed(occurrenceId: string, errorMessage: string): Promise<void>;
   markEnqueueFailed(occurrenceId: string, errorMessage: string): Promise<void>;
 }

@@ -35,6 +35,9 @@ describe('planner service', () => {
         throw new Error('not used in this test');
       },
       claimDueForEnqueue: async () => claimed,
+      claimForDelivery: async () => null,
+      markSent: async () => false,
+      markDeliveryFailed: async () => {},
       markEnqueueFailed: async (occurrenceId: string) => {
         failedOccurrenceIds.push(occurrenceId);
       }

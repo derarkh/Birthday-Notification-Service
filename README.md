@@ -90,7 +90,7 @@ npm run dev:worker
 ```
 
 `dev:planner` is implemented and polls for due/missed occurrences.
-`dev:worker` is still a placeholder.
+`dev:worker` is implemented and polls SQS for delivery jobs.
 
 ## Database migration wiring
 Migration commands:

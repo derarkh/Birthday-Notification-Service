@@ -27,7 +27,7 @@ testSuite('user API integration', () => {
   });
 
   beforeEach(async () => {
-    await pool.query('TRUNCATE TABLE users');
+    await pool.query('TRUNCATE TABLE notification_occurrences, users CASCADE');
   });
 
   afterAll(async () => {

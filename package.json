@@ -18,7 +18,7 @@
     "dev:worker": "tsx watch src/app/worker/index.ts",
     "db:migrate": "node scripts/db/migrate.mjs up",
     "db:migrate:down": "node scripts/db/migrate.mjs down",
-    "test:integration": "RUN_INTEGRATION=true vitest run src/tests/user-api.integration.test.ts"
+    "test:integration": "RUN_INTEGRATION=true vitest run src/tests/*.integration.test.ts"
   },
   "dependencies": {
     "@types/luxon": "^3.7.1",

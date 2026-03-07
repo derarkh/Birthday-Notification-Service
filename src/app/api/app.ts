@@ -1,6 +1,8 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 
 import type { UserRepository } from '../../domain/user.js';
+import { isValidDateOnly } from '../../domain/scheduling/date-only.js';
+import { canonicalizeTimezone } from '../../domain/scheduling/timezone.js';
 
 interface BuildAppDependencies {
   userRepository: UserRepository;
@@ -21,33 +23,6 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function validateBirthdayDateOnly(value: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-
-  if (!match) {
-    return false;
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-
-  return (
-    parsed.getUTCFullYear() === year &&
-    parsed.getUTCMonth() === month - 1 &&
-    parsed.getUTCDate() === day
-  );
-}
-
-function normalizeTimezone(value: string): string | null {
-  try {
-    return new Intl.DateTimeFormat('en-US', { timeZone: value }).resolvedOptions().timeZone;
-  } catch {
-    return null;
-  }
-}
-
 export function buildApp({ userRepository }: BuildAppDependencies): FastifyInstance {
   const app = Fastify({ logger: true });
 
@@ -58,7 +33,7 @@ export function buildApp({ userRepository }: BuildAppDependencies): FastifyInsta
       return reply.status(400).send({ error: 'firstName and lastName are required strings' });
     }
 
-    if (!isNonEmptyString(birthday) || !validateBirthdayDateOnly(birthday)) {
+    if (!isNonEmptyString(birthday) || !isValidDateOnly(birthday)) {
       return reply.status(400).send({ error: 'birthday must be a valid YYYY-MM-DD date' });
     }
 
@@ -66,7 +41,7 @@ export function buildApp({ userRepository }: BuildAppDependencies): FastifyInsta
       return reply.status(400).send({ error: 'timezone is required' });
     }
 
-    const canonicalTimezone = normalizeTimezone(timezone);
+    const canonicalTimezone = canonicalizeTimezone(timezone);
 
     if (!canonicalTimezone) {
       return reply.status(400).send({ error: 'timezone must be a valid IANA timezone' });

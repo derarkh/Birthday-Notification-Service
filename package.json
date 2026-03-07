@@ -21,8 +21,10 @@
     "test:integration": "RUN_INTEGRATION=true vitest run src/tests/user-api.integration.test.ts"
   },
   "dependencies": {
+    "@types/luxon": "^3.7.1",
     "dotenv": "^16.4.5",
     "fastify": "^4.28.1",
+    "luxon": "^3.7.2",
     "pg": "^8.13.1"
   },
   "devDependencies": {

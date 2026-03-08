@@ -9,6 +9,10 @@ export interface AppConfig {
   awsRegion: string;
   awsEndpointUrl: string | null;
   sqsBirthdayQueueUrl: string;
+  sqsBirthdayDlqName: string;
+  sqsMaxReceiveCount: number;
+  sqsVisibilityTimeoutSeconds: number;
+  sqsMessageRetentionSeconds: number;
   awsAccessKeyId: string | null;
   awsSecretAccessKey: string | null;
   outboundBaseUrl: string;
@@ -28,6 +32,10 @@ export function loadConfig(): AppConfig {
   const awsRegion = process.env.AWS_REGION ?? 'ap-southeast-2';
   const awsEndpointUrl = process.env.AWS_ENDPOINT_URL ?? null;
   const sqsBirthdayQueueUrl = process.env.SQS_BIRTHDAY_QUEUE_URL;
+  const sqsBirthdayDlqName = process.env.SQS_BIRTHDAY_DLQ_NAME ?? 'birthday-delivery-dlq';
+  const sqsMaxReceiveCount = Number(process.env.SQS_MAX_RECEIVE_COUNT ?? 5);
+  const sqsVisibilityTimeoutSeconds = Number(process.env.SQS_VISIBILITY_TIMEOUT_SECONDS ?? 30);
+  const sqsMessageRetentionSeconds = Number(process.env.SQS_MESSAGE_RETENTION_SECONDS ?? 1209600);
   const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID ?? null;
   const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY ?? null;
   const outboundBaseUrl = process.env.OUTBOUND_BASE_URL;
@@ -40,6 +48,9 @@ export function loadConfig(): AppConfig {
   }
   if (!sqsBirthdayQueueUrl) {
     throw new Error('SQS_BIRTHDAY_QUEUE_URL is required');
+  }
+  if (!sqsBirthdayDlqName) {
+    throw new Error('SQS_BIRTHDAY_DLQ_NAME is required');
   }
   if (!outboundBaseUrl) {
     throw new Error('OUTBOUND_BASE_URL is required');
@@ -69,6 +80,15 @@ export function loadConfig(): AppConfig {
   if (!Number.isInteger(workerSqsMaxMessages) || workerSqsMaxMessages <= 0) {
     throw new Error('WORKER_SQS_MAX_MESSAGES must be a positive integer');
   }
+  if (!Number.isInteger(sqsMaxReceiveCount) || sqsMaxReceiveCount <= 0) {
+    throw new Error('SQS_MAX_RECEIVE_COUNT must be a positive integer');
+  }
+  if (!Number.isInteger(sqsVisibilityTimeoutSeconds) || sqsVisibilityTimeoutSeconds <= 0) {
+    throw new Error('SQS_VISIBILITY_TIMEOUT_SECONDS must be a positive integer');
+  }
+  if (!Number.isInteger(sqsMessageRetentionSeconds) || sqsMessageRetentionSeconds <= 0) {
+    throw new Error('SQS_MESSAGE_RETENTION_SECONDS must be a positive integer');
+  }
 
   return {
     port,
@@ -81,6 +101,10 @@ export function loadConfig(): AppConfig {
     awsRegion,
     awsEndpointUrl,
     sqsBirthdayQueueUrl,
+    sqsBirthdayDlqName,
+    sqsMaxReceiveCount,
+    sqsVisibilityTimeoutSeconds,
+    sqsMessageRetentionSeconds,
     awsAccessKeyId,
     awsSecretAccessKey,
     outboundBaseUrl,

@@ -47,6 +47,8 @@ Key defaults:
 - PostgreSQL: `postgres://postgres:postgres@localhost:5432/birthday_service`
 - LocalStack endpoint: `http://localhost:4566`
 - queue URL placeholder: `http://localhost:4566/000000000000/birthday-delivery-queue`
+- DLQ name: `birthday-delivery-dlq`
+- SQS redrive defaults: `maxReceiveCount=5`, `VisibilityTimeout=30`, `MessageRetentionPeriod=1209600`
 
 ## Install
 ```bash
@@ -62,12 +64,27 @@ docker compose up -d postgres localstack
 ```bash
 ./scripts/localstack/create-queues.sh
 ```
-The script sets LocalStack-safe dummy AWS credentials automatically if they are not already defined.
+The script provisions both:
+- main queue: `birthday-delivery-queue`
+- dead-letter queue: `birthday-delivery-dlq`
+
+It also configures redrive defaults:
+- `maxReceiveCount=5`
+- `VisibilityTimeout=30`
+- `MessageRetentionPeriod=1209600`
+- and sets LocalStack-safe dummy AWS credentials automatically if they are not already defined.
 
 Equivalent direct command:
 ```bash
 AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_SESSION_TOKEN=test \
 aws --endpoint-url=http://localhost:4566 --region ap-southeast-2 sqs create-queue --queue-name birthday-delivery-queue
+```
+
+Verify queue attributes:
+```bash
+aws --endpoint-url=http://localhost:4566 --region ap-southeast-2 sqs get-queue-attributes \
+  --queue-url "$SQS_BIRTHDAY_QUEUE_URL" \
+  --attribute-names RedrivePolicy VisibilityTimeout MessageRetentionPeriod
 ```
 
 ## Validation commands
@@ -80,6 +97,7 @@ npm run test:integration
 Planner SQS LocalStack integration test is optional and gated:
 ```bash
 RUN_INTEGRATION=true RUN_AWS_INTEGRATION=true npm run test src/tests/sqs-delivery-queue.integration.test.ts
+RUN_INTEGRATION=true RUN_AWS_INTEGRATION=true npm run test src/tests/dlq-redrive.integration.test.ts
 ```
 
 ## Run scaffold processes

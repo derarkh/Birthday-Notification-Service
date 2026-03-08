@@ -114,6 +114,28 @@ npm run dev:worker
 `dev:planner` is implemented and polls for due/missed occurrences.
 `dev:worker` is implemented and polls SQS for delivery jobs.
 
+## Manual E2E Scenario Script
+After starting `dev:api`, `dev:planner`, and `dev:worker`, run:
+
+```bash
+npm run e2e:add-users
+```
+
+What the script does:
+- creates two cohorts of users:
+  - `ExactScenario-*` (same birthday, same timezone, same due timestamp)
+  - `LookbackScenario-*` (missed window recovered via planner lookback)
+- creates and deletes `DeletedScenario-*`, then verifies no notification occurrence is created/sent for that user
+- prints initial DB rows for those users
+- waits for planner/worker processing
+- prints final DB rows with `status`, `due_at_utc`, `sent_at`, `last_error`
+- exits with error if non-deleted rows are not `sent` or deleted-user row gets an occurrence
+
+At the end, it asks you to verify webhook requests manually.
+Expected webhook requests:
+- `6` total (`3` exact-scenario + `3` lookback-scenario)
+- message format: `Hey, {full_name} it’s your birthday`
+
 ## Database migration wiring
 Migration commands:
 ```bash

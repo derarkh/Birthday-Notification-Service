@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../infrastructure/terraform/localstack-sqs" && pwd)"
+
 AWS_ENDPOINT_URL="${AWS_ENDPOINT_URL:-http://localhost:4566}"
 AWS_REGION="${AWS_REGION:-ap-southeast-2}"
 QUEUE_NAME="${QUEUE_NAME:-birthday-delivery-queue}"
@@ -15,29 +17,22 @@ AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN:-test}"
 export AWS_ACCESS_KEY_ID
 export AWS_SECRET_ACCESS_KEY
 export AWS_SESSION_TOKEN
+export AWS_REGION
 
-# Create DLQ first and resolve its ARN for main queue redrive policy.
-aws --endpoint-url="$AWS_ENDPOINT_URL" --region "$AWS_REGION" sqs create-queue --queue-name "$DLQ_NAME" >/dev/null
+terraform -chdir="$TF_DIR" init -input=false >/dev/null
+terraform -chdir="$TF_DIR" apply -auto-approve \
+  -var "aws_region=$AWS_REGION" \
+  -var "aws_endpoint_url=$AWS_ENDPOINT_URL" \
+  -var "aws_access_key_id=$AWS_ACCESS_KEY_ID" \
+  -var "aws_secret_access_key=$AWS_SECRET_ACCESS_KEY" \
+  -var "queue_name=$QUEUE_NAME" \
+  -var "dlq_name=$DLQ_NAME" \
+  -var "max_receive_count=$MAX_RECEIVE_COUNT" \
+  -var "visibility_timeout_seconds=$VISIBILITY_TIMEOUT_SECONDS" \
+  -var "message_retention_seconds=$MESSAGE_RETENTION_SECONDS" >/dev/null
 
-DLQ_URL=$(aws --endpoint-url="$AWS_ENDPOINT_URL" --region "$AWS_REGION" sqs get-queue-url --queue-name "$DLQ_NAME" --output text --query 'QueueUrl')
-DLQ_ARN=$(aws --endpoint-url="$AWS_ENDPOINT_URL" --region "$AWS_REGION" sqs get-queue-attributes --queue-url "$DLQ_URL" --attribute-names QueueArn --output text --query 'Attributes.QueueArn')
-
-REDRIVE_POLICY=$(printf '{"deadLetterTargetArn":"%s","maxReceiveCount":"%s"}' "$DLQ_ARN" "$MAX_RECEIVE_COUNT")
-REDRIVE_POLICY_ESCAPED=${REDRIVE_POLICY//\"/\\\"}
-ATTRIBUTES=$(cat <<EOF
-{
-  "RedrivePolicy": "$REDRIVE_POLICY_ESCAPED",
-  "VisibilityTimeout": "$VISIBILITY_TIMEOUT_SECONDS",
-  "MessageRetentionPeriod": "$MESSAGE_RETENTION_SECONDS"
-}
-EOF
-)
-
-aws --endpoint-url="$AWS_ENDPOINT_URL" --region "$AWS_REGION" sqs create-queue \
-  --queue-name "$QUEUE_NAME" \
-  --attributes "$ATTRIBUTES" >/dev/null
-
-QUEUE_URL=$(aws --endpoint-url="$AWS_ENDPOINT_URL" --region "$AWS_REGION" sqs get-queue-url --queue-name "$QUEUE_NAME" --output text --query 'QueueUrl')
+QUEUE_URL=$(terraform -chdir="$TF_DIR" output -raw queue_url)
+DLQ_URL=$(terraform -chdir="$TF_DIR" output -raw dlq_url)
 
 echo "Created/verified DLQ: $DLQ_NAME"
 echo "DLQ URL: $DLQ_URL"

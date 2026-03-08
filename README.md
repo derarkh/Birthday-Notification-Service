@@ -38,6 +38,7 @@ src/
 - npm
 - Docker + Docker Compose
 - AWS CLI (for LocalStack queue setup)
+- Terraform
 
 ## Environment
 Copy `.env.example` to `.env` and adjust values as needed.
@@ -60,11 +61,11 @@ npm install
 docker compose up -d postgres localstack
 ```
 
-## Create SQS queue in LocalStack
+## Create SQS queues in LocalStack (Terraform)
 ```bash
-./scripts/localstack/create-queues.sh
+npm run infra:queues
 ```
-The script provisions both:
+This runs Terraform from `infrastructure/terraform/localstack-sqs` and provisions:
 - main queue: `birthday-delivery-queue`
 - dead-letter queue: `birthday-delivery-dlq`
 
@@ -74,10 +75,13 @@ It also configures redrive defaults:
 - `MessageRetentionPeriod=1209600`
 - and sets LocalStack-safe dummy AWS credentials automatically if they are not already defined.
 
-Equivalent direct command:
+Equivalent direct Terraform commands:
 ```bash
-AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_SESSION_TOKEN=test \
-aws --endpoint-url=http://localhost:4566 --region ap-southeast-2 sqs create-queue --queue-name birthday-delivery-queue
+cd infrastructure/terraform/localstack-sqs
+terraform init
+terraform apply -auto-approve \
+  -var='aws_endpoint_url=http://localhost:4566' \
+  -var='aws_region=ap-southeast-2'
 ```
 
 Verify queue attributes:

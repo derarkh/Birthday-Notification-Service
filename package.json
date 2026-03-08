@@ -18,7 +18,7 @@
     "dev:worker": "tsx watch src/app/worker/index.ts",
     "db:migrate": "node scripts/db/migrate.mjs up",
     "db:migrate:down": "node scripts/db/migrate.mjs down",
-    "test:integration": "npm run db:migrate && RUN_INTEGRATION=true vitest run src/tests/notification-occurrence.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/planner.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/worker.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/user-api.integration.test.ts"
+    "test:integration": "npm run db:migrate && RUN_INTEGRATION=true vitest run src/tests/notification-occurrence.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/planner.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/worker.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/e2e.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/user-api.integration.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.884.0",

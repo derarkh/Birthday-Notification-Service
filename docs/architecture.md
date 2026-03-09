@@ -20,66 +20,6 @@ Worker -> SQS (main queue) -> PostgreSQL -> Outbound HTTP endpoint
 SQS main queue -> DLQ (redrive policy provisioned)
 ```
 
-## Hexagonal Component Diagram
-The project follows a ports-and-adapters style:
-- Core (`app` + `domain`) defines ports (interfaces and business workflows).
-- Infrastructure implements adapters for those ports (Postgres, SQS, HTTP).
-- External systems interact only through adapters.
-
-```mermaid
-flowchart LR
-  Client[Client]
-  Scheduler[Planner Loop]
-  QueuePoller[Worker Loop]
-  PG[(PostgreSQL)]
-  SQS[(SQS Main Queue)]
-  DLQ[(SQS DLQ)]
-  Webhook[Outbound Webhook]
-
-  subgraph Core["Hexagon Core (Domain + App Services)"]
-    APIUseCase[API Use Cases]
-    PlannerSvc[PlannerService]
-    WorkerSvc[WorkerService]
-
-    UserPort[[UserRepository Port]]
-    OccPort[[NotificationOccurrenceRepository Port]]
-    QueuePubPort[[DeliveryQueuePublisher Port]]
-    QueueConPort[[DeliveryQueueConsumer Port]]
-    OutboundPort[[OutboundBirthdayClient Port]]
-
-    APIUseCase --> UserPort
-    PlannerSvc --> UserPort
-    PlannerSvc --> OccPort
-    PlannerSvc --> QueuePubPort
-    WorkerSvc --> QueueConPort
-    WorkerSvc --> OccPort
-    WorkerSvc --> OutboundPort
-  end
-
-  subgraph Adapters["Infrastructure Adapters"]
-    ApiAdapter[Fastify API Adapter]
-    PlannerAdapter[Planner Runtime Adapter]
-    WorkerAdapter[Worker Runtime Adapter]
-    UserRepoAdapter[PostgresUserRepository]
-    OccRepoAdapter[PostgresNotificationOccurrenceRepository]
-    QueuePubAdapter[SqsDeliveryQueuePublisher]
-    QueueConAdapter[SqsDeliveryQueueConsumer]
-    OutboundAdapter[HttpOutboundBirthdayClient]
-  end
-
-  Client --> ApiAdapter --> APIUseCase
-  Scheduler --> PlannerAdapter --> PlannerSvc
-  QueuePoller --> WorkerAdapter --> WorkerSvc
-
-  UserPort --> UserRepoAdapter --> PG
-  OccPort --> OccRepoAdapter --> PG
-  QueuePubPort --> QueuePubAdapter --> SQS
-  QueueConPort --> QueueConAdapter --> SQS
-  OutboundPort --> OutboundAdapter --> Webhook
-
-  SQS --> DLQ
-```
-
 ## Data Model
 
 ### `users`

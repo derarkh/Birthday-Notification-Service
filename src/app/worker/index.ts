@@ -6,8 +6,10 @@ import { createPool } from '../../infrastructure/db/pool.js';
 import { PostgresNotificationOccurrenceRepository } from '../../infrastructure/db/notification-occurrence-repository.js';
 import { SqsDeliveryQueueConsumer } from '../../infrastructure/aws/sqs-delivery-queue.js';
 import { HttpOutboundBirthdayClient } from '../../infrastructure/http/outbound-birthday-client.js';
+import { createLogger } from '../../infrastructure/logging/index.js';
 
 export async function startWorker(): Promise<void> {
+  const logger = createLogger('worker');
   const config = loadConfig();
   const pool = createPool(config.databaseUrl);
   const occurrenceRepository = new PostgresNotificationOccurrenceRepository(pool);
@@ -27,16 +29,22 @@ export async function startWorker(): Promise<void> {
   const outboundClient = new HttpOutboundBirthdayClient({
     baseUrl: config.outboundBaseUrl
   });
-  const workerService = new WorkerService(queueConsumer, occurrenceRepository, outboundClient);
+  const workerServiceWithLogger = new WorkerService(
+    queueConsumer,
+    occurrenceRepository,
+    outboundClient,
+    logger.child({ component: 'worker-service' })
+  );
 
   const runOnce = async (): Promise<void> => {
     try {
-      const summary = await workerService.runOnce();
-      console.log(
-        `[worker] received=${summary.received} sent=${summary.sent} skipped=${summary.skipped} failed=${summary.failed}`
-      );
+      const summary = await workerServiceWithLogger.runOnce();
+      logger.info({ event: 'worker_run_summary', ...summary }, 'Worker run completed');
     } catch (error) {
-      console.error('[worker] run failed', error);
+      logger.error(
+        { event: 'worker_run_failed', error: error instanceof Error ? error.message : 'Unknown worker error' },
+        'Worker run failed'
+      );
     }
   };
 
@@ -49,6 +57,7 @@ export async function startWorker(): Promise<void> {
   const shutdown = async (): Promise<void> => {
     clearInterval(timer);
     await pool.end();
+    logger.info({ event: 'worker_shutdown' }, 'Worker shutdown complete');
     process.exit(0);
   };
 

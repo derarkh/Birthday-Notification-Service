@@ -1,5 +1,6 @@
 import { formatBirthdayMessage } from '../../domain/message.js';
 import type { ClaimedDeliveryOccurrence } from '../../domain/notification.js';
+import type { Logger } from '../../infrastructure/logging/index.js';
 
 export interface DeliveryQueueMessage {
   receiptHandle: string;
@@ -44,7 +45,8 @@ export class WorkerService {
   public constructor(
     private readonly queueConsumer: DeliveryQueueConsumer,
     private readonly occurrenceRepository: WorkerOccurrenceRepository,
-    private readonly outboundClient: OutboundBirthdayClient
+    private readonly outboundClient: OutboundBirthdayClient,
+    private readonly logger?: Logger
   ) {}
 
   public async runOnce(now: Date = new Date()): Promise<WorkerRunSummary> {
@@ -60,12 +62,29 @@ export class WorkerService {
         const occurrenceId = parseOccurrenceId(message.body);
         if (!occurrenceId) {
           skipped += 1;
+          this.logger?.warn(
+            {
+              event: 'worker_skip_invalid_payload',
+              status: 'skipped',
+              receiptHandle: message.receiptHandle
+            },
+            'Skipping message with invalid payload'
+          );
           continue;
         }
 
         claimedOccurrence = await this.occurrenceRepository.claimForDelivery(occurrenceId, now);
         if (!claimedOccurrence) {
           skipped += 1;
+          this.logger?.info(
+            {
+              event: 'worker_skip_not_claimed',
+              occurrenceId,
+              status: 'skipped',
+              receiptHandle: message.receiptHandle
+            },
+            'Skipping message because occurrence was not claimable'
+          );
           continue;
         }
 
@@ -80,6 +99,17 @@ export class WorkerService {
         }
 
         sent += 1;
+        this.logger?.info(
+          {
+            event: 'delivery_sent',
+            occurrenceId: claimedOccurrence.occurrence.id,
+            userId: claimedOccurrence.occurrence.userId,
+            idempotencyKey: claimedOccurrence.occurrence.idempotencyKey,
+            status: 'sent',
+            sentAt: now.toISOString()
+          },
+          'Delivery sent successfully'
+        );
       } catch (error) {
         failed += 1;
 
@@ -89,9 +119,37 @@ export class WorkerService {
             claimedOccurrence.occurrence.id,
             messageText
           );
+          this.logger?.error(
+            {
+              event: 'delivery_failed',
+              occurrenceId: claimedOccurrence.occurrence.id,
+              userId: claimedOccurrence.occurrence.userId,
+              idempotencyKey: claimedOccurrence.occurrence.idempotencyKey,
+              status: 'failed',
+              error: messageText
+            },
+            'Delivery failed'
+          );
+        } else {
+          this.logger?.error(
+            {
+              event: 'worker_failed_before_claim',
+              status: 'failed',
+              error: error instanceof Error ? error.message : 'Unknown worker error',
+              receiptHandle: message.receiptHandle
+            },
+            'Worker failed before claiming occurrence'
+          );
         }
       } finally {
         await this.queueConsumer.acknowledgeMessage(message.receiptHandle);
+        this.logger?.debug(
+          {
+            event: 'worker_acknowledged_message',
+            receiptHandle: message.receiptHandle
+          },
+          'Acknowledged queue message'
+        );
       }
     }
 

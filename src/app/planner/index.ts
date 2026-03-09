@@ -5,9 +5,11 @@ import { createPool } from '../../infrastructure/db/pool.js';
 import { PostgresNotificationOccurrenceRepository } from '../../infrastructure/db/notification-occurrence-repository.js';
 import { PostgresUserRepository } from '../../infrastructure/db/user-repository.js';
 import { SqsDeliveryQueuePublisher } from '../../infrastructure/aws/sqs-delivery-queue.js';
+import { createLogger } from '../../infrastructure/logging/index.js';
 import { PlannerService } from './planner-service.js';
 
 export async function startPlanner(): Promise<void> {
+  const logger = createLogger('planner');
   const config = loadConfig();
   const pool = createPool(config.databaseUrl);
   const userRepository = new PostgresUserRepository(pool);
@@ -23,16 +25,17 @@ export async function startPlanner(): Promise<void> {
     lookbackHours: config.plannerLookbackHours,
     batchSize: config.plannerBatchSize,
     userPageSize: config.plannerUserPageSize
-  });
+  }, logger.child({ component: 'planner-service' }));
 
   const runOnce = async (): Promise<void> => {
     try {
       const summary = await plannerService.runOnce();
-      console.log(
-        `[planner] claimed=${summary.claimed} enqueued=${summary.enqueued} failed=${summary.failed}`
-      );
+      logger.info({ event: 'planner_run_summary', ...summary }, 'Planner run completed');
     } catch (error) {
-      console.error('[planner] run failed', error);
+      logger.error(
+        { event: 'planner_run_failed', error: error instanceof Error ? error.message : 'Unknown planner error' },
+        'Planner run failed'
+      );
     }
   };
 
@@ -45,6 +48,7 @@ export async function startPlanner(): Promise<void> {
   const shutdown = async (): Promise<void> => {
     clearInterval(timer);
     await pool.end();
+    logger.info({ event: 'planner_shutdown' }, 'Planner shutdown complete');
     process.exit(0);
   };
 

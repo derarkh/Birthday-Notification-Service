@@ -2,12 +2,6 @@
 
 TypeScript Node.js service scaffold for timezone-safe birthday notifications.
 
-This Slice 1 baseline provides:
-- strict TypeScript project setup
-- Fastify API scaffold with user endpoints
-- lint/typecheck/test tooling
-- PostgreSQL + LocalStack (SQS) local dependencies via Docker Compose
-- migration wiring with `node-pg-migrate`
 
 ## Stack
 - Node.js + TypeScript

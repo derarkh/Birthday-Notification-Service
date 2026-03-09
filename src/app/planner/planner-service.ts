@@ -3,6 +3,7 @@ import { DateTime } from 'luxon';
 import type { NotificationOccurrence, NotificationOccurrenceRepository } from '../../domain/notification.js';
 import type { UserRepository } from '../../domain/user.js';
 import { calculateBirthdayDueAtUtc } from '../../domain/scheduling/birthday-scheduling.js';
+import type { Logger } from '../../infrastructure/logging/index.js';
 
 export interface DeliveryQueuePublisher {
   publishOccurrence(occurrence: NotificationOccurrence): Promise<void>;
@@ -25,7 +26,8 @@ export class PlannerService {
     private readonly userRepository: UserRepository,
     private readonly occurrenceRepository: NotificationOccurrenceRepository,
     private readonly queuePublisher: DeliveryQueuePublisher,
-    private readonly options: PlannerServiceOptions
+    private readonly options: PlannerServiceOptions,
+    private readonly logger?: Logger
   ) {}
 
   public async runOnce(now: Date = new Date()): Promise<PlannerRunSummary> {
@@ -44,10 +46,32 @@ export class PlannerService {
       try {
         await this.queuePublisher.publishOccurrence(occurrence);
         enqueued += 1;
+        this.logger?.info(
+          {
+            event: 'occurrence_enqueued',
+            occurrenceId: occurrence.id,
+            userId: occurrence.userId,
+            idempotencyKey: occurrence.idempotencyKey,
+            dueAtUtc: occurrence.dueAtUtc.toISOString(),
+            status: 'enqueued'
+          },
+          'Occurrence enqueued'
+        );
       } catch (error) {
         failed += 1;
         const message = error instanceof Error ? error.message : 'Unknown enqueue error';
         await this.occurrenceRepository.markEnqueueFailed(occurrence.id, message);
+        this.logger?.error(
+          {
+            event: 'occurrence_enqueue_failed',
+            occurrenceId: occurrence.id,
+            userId: occurrence.userId,
+            idempotencyKey: occurrence.idempotencyKey,
+            status: 'failed',
+            error: message
+          },
+          'Failed to enqueue occurrence'
+        );
       }
     }
 
@@ -98,6 +122,15 @@ export class PlannerService {
             localOccurrenceDate,
             dueAtUtc
           });
+          this.logger?.debug(
+            {
+              event: 'occurrence_upserted',
+              userId: user.id,
+              localOccurrenceDate,
+              dueAtUtc: dueAtUtc.toISOString()
+            },
+            'Occurrence upserted during generation'
+          );
         }
       }
 

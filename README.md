@@ -44,6 +44,7 @@ Key defaults:
 - queue URL placeholder: `http://localhost:4566/000000000000/birthday-delivery-queue`
 - DLQ name: `birthday-delivery-dlq`
 - SQS redrive defaults: `maxReceiveCount=5`, `VisibilityTimeout=30`, `MessageRetentionPeriod=1209600`
+- Projector polling: `PROJECTOR_POLL_INTERVAL_SECONDS=10`, `PROJECTOR_BATCH_SIZE=200`
 
 ## Install
 ```bash
@@ -107,8 +108,15 @@ npm run dev:worker
 ```
 
 `dev:projector` projects user change events into occurrence rows.
-`dev:planner` is implemented and polls for due/missed occurrences.
+`dev:planner` is enqueue-only and polls for due/missed projected occurrences.
 `dev:worker` is implemented and polls SQS for delivery jobs.
+
+## Runtime Flow (Projector + Planner)
+1. API writes users (`POST`, `PATCH`, `DELETE`).
+2. DB trigger inserts rows into `user_change_events`.
+3. Projector consumes unprocessed `user_change_events` and upserts `notification_occurrences`.
+4. Planner claims due occurrences and enqueues them to SQS.
+5. Worker consumes SQS messages, sends outbound HTTP request, and updates occurrence status.
 
 ## Manual E2E Scenario Script
 After starting `dev:api`, `dev:projector`, `dev:planner`, and `dev:worker`, run:

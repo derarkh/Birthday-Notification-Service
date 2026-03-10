@@ -16,7 +16,7 @@ testSuite('worker integration', () => {
   const occurrenceRepository = new PostgresNotificationOccurrenceRepository(pool);
 
   beforeEach(async () => {
-    await pool.query('TRUNCATE TABLE notification_occurrences, users CASCADE');
+    await pool.query('TRUNCATE TABLE user_change_events, notification_occurrences, users CASCADE');
   });
 
   afterAll(async () => {

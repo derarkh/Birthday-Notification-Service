@@ -6,6 +6,8 @@ export interface AppConfig {
   plannerBatchSize: number;
   plannerUserPageSize: number;
   plannerPollIntervalSeconds: number;
+  projectorPollIntervalSeconds: number;
+  projectorBatchSize: number;
   awsRegion: string;
   awsEndpointUrl: string | null;
   sqsBirthdayQueueUrl: string;
@@ -29,6 +31,8 @@ export function loadConfig(): AppConfig {
   const plannerBatchSize = Number(process.env.PLANNER_BATCH_SIZE ?? 500);
   const plannerUserPageSize = Number(process.env.PLANNER_USER_PAGE_SIZE ?? 1000);
   const plannerPollIntervalSeconds = Number(process.env.PLANNER_POLL_INTERVAL_SECONDS ?? 60);
+  const projectorPollIntervalSeconds = Number(process.env.PROJECTOR_POLL_INTERVAL_SECONDS ?? 10);
+  const projectorBatchSize = Number(process.env.PROJECTOR_BATCH_SIZE ?? 200);
   const awsRegion = process.env.AWS_REGION ?? 'ap-southeast-2';
   const awsEndpointUrl = process.env.AWS_ENDPOINT_URL ?? null;
   const sqsBirthdayQueueUrl = process.env.SQS_BIRTHDAY_QUEUE_URL;
@@ -71,6 +75,12 @@ export function loadConfig(): AppConfig {
   if (!Number.isInteger(plannerPollIntervalSeconds) || plannerPollIntervalSeconds <= 0) {
     throw new Error('PLANNER_POLL_INTERVAL_SECONDS must be a positive integer');
   }
+  if (!Number.isInteger(projectorPollIntervalSeconds) || projectorPollIntervalSeconds <= 0) {
+    throw new Error('PROJECTOR_POLL_INTERVAL_SECONDS must be a positive integer');
+  }
+  if (!Number.isInteger(projectorBatchSize) || projectorBatchSize <= 0) {
+    throw new Error('PROJECTOR_BATCH_SIZE must be a positive integer');
+  }
   if (!Number.isInteger(workerPollIntervalSeconds) || workerPollIntervalSeconds <= 0) {
     throw new Error('WORKER_POLL_INTERVAL_SECONDS must be a positive integer');
   }
@@ -98,6 +108,8 @@ export function loadConfig(): AppConfig {
     plannerBatchSize,
     plannerUserPageSize,
     plannerPollIntervalSeconds,
+    projectorPollIntervalSeconds,
+    projectorBatchSize,
     awsRegion,
     awsEndpointUrl,
     sqsBirthdayQueueUrl,

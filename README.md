@@ -101,15 +101,17 @@ RUN_INTEGRATION=true RUN_AWS_INTEGRATION=true npm run test src/tests/dlq-redrive
 ## Run scaffold processes
 ```bash
 npm run dev:api
+npm run dev:projector
 npm run dev:planner
 npm run dev:worker
 ```
 
+`dev:projector` projects user change events into occurrence rows.
 `dev:planner` is implemented and polls for due/missed occurrences.
 `dev:worker` is implemented and polls SQS for delivery jobs.
 
 ## Manual E2E Scenario Script
-After starting `dev:api`, `dev:planner`, and `dev:worker`, run:
+After starting `dev:api`, `dev:projector`, `dev:planner`, and `dev:worker`, run:
 
 ```bash
 npm run e2e:add-users
@@ -139,6 +141,7 @@ npm run db:migrate:down
 
 ## Current API surface
 - `POST /user`
+- `PATCH /user`
 - `DELETE /user`
 
 ### POST /user
@@ -174,3 +177,23 @@ Request body:
 Responses:
 - `204` when deleted
 - `404` when user does not exist
+
+### PATCH /user
+Request body:
+```json
+{
+  "id": "uuid",
+  "birthday": "1990-03-08",
+  "timezone": "UTC"
+}
+```
+
+Rules:
+- `id` is required
+- at least one updatable field is required
+- `birthday` and `timezone` validation is the same as `POST /user`
+
+Responses:
+- `200` with updated user
+- `400` invalid payload
+- `404` user not found

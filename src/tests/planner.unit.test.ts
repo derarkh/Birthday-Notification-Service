@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import type { NotificationOccurrence, NotificationOccurrenceRepository } from '../domain/notification.js';
 import { PlannerService, type DeliveryQueuePublisher } from '../app/planner/planner-service.js';
-import type { UserRepository } from '../domain/user.js';
 
 function buildOccurrence(id: string): NotificationOccurrence {
   const now = new Date('2026-01-01T00:00:00.000Z');
@@ -42,16 +41,6 @@ describe('planner service', () => {
         failedOccurrenceIds.push(occurrenceId);
       }
     };
-    const userRepository: UserRepository = {
-      create: async () => {
-        throw new Error('not used in this test');
-      },
-      softDeleteById: async () => {
-        throw new Error('not used in this test');
-      },
-      listActiveForPlanning: async () => []
-    };
-
     const queuePublisher: DeliveryQueuePublisher = {
       publishOccurrence: async (occurrence) => {
         if (occurrence.id === 'b') {
@@ -60,10 +49,9 @@ describe('planner service', () => {
       }
     };
 
-    const planner = new PlannerService(userRepository, repository, queuePublisher, {
+    const planner = new PlannerService(repository, queuePublisher, {
       lookbackHours: 48,
-      batchSize: 100,
-      userPageSize: 100
+      batchSize: 100
     });
 
     const summary = await planner.runOnce(new Date('2026-01-01T10:00:00.000Z'));

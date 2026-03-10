@@ -16,7 +16,7 @@ testSuite('planner integration', () => {
   const occurrenceRepository = new PostgresNotificationOccurrenceRepository(pool);
 
   beforeEach(async () => {
-    await pool.query('TRUNCATE TABLE notification_occurrences, users CASCADE');
+    await pool.query('TRUNCATE TABLE user_change_events, notification_occurrences, users CASCADE');
   });
 
   afterAll(async () => {
@@ -50,6 +50,7 @@ testSuite('planner integration', () => {
     });
 
     const now = new Date('2026-12-15T15:00:00.000Z');
+    const lookbackFrom = new Date(now.getTime() - 48 * 60 * 60 * 1000);
 
     const publishedIds: string[] = [];
 
@@ -59,10 +60,34 @@ testSuite('planner integration', () => {
       }
     };
 
-    const planner = new PlannerService(userRepository, occurrenceRepository, queuePublisher, {
+    await occurrenceRepository.createOrGet({
+      userId: dueUser.id,
+      occasionType: 'birthday',
+      localOccurrenceDate: '2026-12-15',
+      dueAtUtc: new Date('2026-12-14T22:00:00.000Z')
+    });
+    await occurrenceRepository.createOrGet({
+      userId: missedUser.id,
+      occasionType: 'birthday',
+      localOccurrenceDate: '2026-12-14',
+      dueAtUtc: new Date('2026-12-13T22:00:00.000Z')
+    });
+    await occurrenceRepository.createOrGet({
+      userId: dueUser.id,
+      occasionType: 'birthday',
+      localOccurrenceDate: '2026-12-20',
+      dueAtUtc: new Date('2026-12-19T22:00:00.000Z')
+    });
+    await occurrenceRepository.createOrGet({
+      userId: missedUser.id,
+      occasionType: 'birthday',
+      localOccurrenceDate: '2026-12-10',
+      dueAtUtc: new Date(lookbackFrom.getTime() - 1000)
+    });
+
+    const planner = new PlannerService(occurrenceRepository, queuePublisher, {
       lookbackHours: 48,
-      batchSize: 20,
-      userPageSize: 50
+      batchSize: 20
     });
 
     const firstRun = await planner.runOnce(now);
@@ -72,16 +97,8 @@ testSuite('planner integration', () => {
     expect(secondRun).toEqual({ claimed: 0, enqueued: 0, failed: 0 });
 
     expect(publishedIds).toHaveLength(2);
-    const dueOccurrence = await occurrenceRepository.findByLogicalKey(
-      dueUser.id,
-      'birthday',
-      '2026-12-15'
-    );
-    const missedOccurrence = await occurrenceRepository.findByLogicalKey(
-      missedUser.id,
-      'birthday',
-      '2026-12-14'
-    );
+    const dueOccurrence = await occurrenceRepository.findByLogicalKey(dueUser.id, 'birthday', '2026-12-15');
+    const missedOccurrence = await occurrenceRepository.findByLogicalKey(missedUser.id, 'birthday', '2026-12-14');
     expect(dueOccurrence).not.toBeNull();
     expect(missedOccurrence).not.toBeNull();
     expect(new Set(publishedIds)).toEqual(new Set([dueOccurrence?.id, missedOccurrence?.id]));
@@ -95,8 +112,10 @@ testSuite('planner integration', () => {
     );
 
     expect(statusRows.rows).toEqual([
+      { local_occurrence_date: '2026-12-10', status: 'pending' },
       { local_occurrence_date: '2026-12-14', status: 'enqueued' },
-      { local_occurrence_date: '2026-12-15', status: 'enqueued' }
+      { local_occurrence_date: '2026-12-15', status: 'enqueued' },
+      { local_occurrence_date: '2026-12-20', status: 'pending' }
     ]);
   });
 });

@@ -5,6 +5,7 @@ import type { Pool } from 'pg';
 import type {
   CreateUserInput,
   PlanningUser,
+  UpdateUserInput,
   User,
   UserRepository
 } from '../../domain/user.js';
@@ -53,6 +54,45 @@ export class PostgresUserRepository implements UserRepository {
     }
 
     return mapRow(row);
+  }
+
+  public async updateById(input: UpdateUserInput): Promise<User | null> {
+    const firstName = input.firstName ?? null;
+    const lastName = input.lastName ?? null;
+    const birthday = input.birthday ?? null;
+    const timezone = input.timezone ?? null;
+
+    const result = await this.pool.query<UserRow>(
+      `
+      UPDATE users
+      SET
+        first_name = COALESCE($2, first_name),
+        last_name = COALESCE($3, last_name),
+        birthday = COALESCE($4::date, birthday),
+        timezone = COALESCE($5, timezone)
+      WHERE id = $1
+        AND deleted_at IS NULL
+      RETURNING id, first_name, last_name, birthday::text AS birthday, timezone, created_at, deleted_at
+      `,
+      [input.id, firstName, lastName, birthday, timezone]
+    );
+
+    const row = result.rows[0] ?? null;
+    return row ? mapRow(row) : null;
+  }
+
+  public async findById(id: string): Promise<User | null> {
+    const result = await this.pool.query<UserRow>(
+      `
+      SELECT id, first_name, last_name, birthday::text AS birthday, timezone, created_at, deleted_at
+      FROM users
+      WHERE id = $1
+      `,
+      [id]
+    );
+
+    const row = result.rows[0] ?? null;
+    return row ? mapRow(row) : null;
   }
 
   public async softDeleteById(id: string): Promise<boolean> {

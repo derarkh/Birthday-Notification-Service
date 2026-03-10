@@ -15,12 +15,13 @@
     "test:watch": "vitest",
     "dev:api": "tsx watch src/app/api/server.ts",
     "dev:planner": "tsx watch src/app/planner/index.ts",
+    "dev:projector": "tsx watch src/app/projector/index.ts",
     "dev:worker": "tsx watch src/app/worker/index.ts",
     "e2e:add-users": "./scripts/e2e/add_users_scenarios.sh",
     "infra:queues": "./scripts/localstack/create-queues.sh",
     "db:migrate": "node scripts/db/migrate.mjs up",
     "db:migrate:down": "node scripts/db/migrate.mjs down",
-    "test:integration": "npm run db:migrate && RUN_INTEGRATION=true vitest run src/tests/notification-occurrence.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/planner.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/worker.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/e2e.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/user-api.integration.test.ts"
+    "test:integration": "npm run db:migrate && RUN_INTEGRATION=true vitest run src/tests/notification-occurrence.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/projector.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/planner.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/worker.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/e2e.integration.test.ts && RUN_INTEGRATION=true vitest run src/tests/user-api.integration.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.884.0",

@@ -15,6 +15,14 @@ export interface CreateUserInput {
   timezone: string;
 }
 
+export interface UpdateUserInput {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  birthday?: string;
+  timezone?: string;
+}
+
 export interface PlanningUser {
   id: string;
   birthday: string;
@@ -28,6 +36,8 @@ export interface ListActiveUsersForPlanningInput {
 
 export interface UserRepository {
   create(input: CreateUserInput): Promise<User>;
+  updateById(input: UpdateUserInput): Promise<User | null>;
+  findById(id: string): Promise<User | null>;
   softDeleteById(id: string): Promise<boolean>;
   listActiveForPlanning(input: ListActiveUsersForPlanningInput): Promise<PlanningUser[]>;
 }

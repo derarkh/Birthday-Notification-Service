@@ -2,8 +2,9 @@
 
 ## Overview
 The service is a planner + worker system with PostgreSQL as source of truth:
-- API manages users (`POST /user`, `DELETE /user`)
-- Planner generates and enqueues due birthday occurrences
+- API manages users (`POST /user`, `PATCH /user`, `DELETE /user`)
+- Projector processes DB user-change events and upserts occurrences
+- Planner only claims due occurrences and enqueues them
 - SQS buffers delivery jobs
 - Worker consumes SQS and performs outbound HTTP delivery
 - PostgreSQL stores durable user and occurrence state
@@ -14,6 +15,7 @@ Current local infrastructure includes SQS main queue + DLQ provisioning (via Ter
 ```text
 Client -> API -> PostgreSQL
 
+Projector -> PostgreSQL
 Planner -> PostgreSQL -> SQS (main queue)
 Worker -> SQS (main queue) -> PostgreSQL -> Outbound HTTP endpoint
 
@@ -48,17 +50,32 @@ SQS main queue -> DLQ (redrive policy provisioned)
 Logical uniqueness is enforced at DB level by:
 `(user_id, occasion_type, local_occurrence_date)`.
 
+### `user_change_events`
+- `id`
+- `user_id`
+- `event_type` (`created`, `updated`, `deleted`)
+- `created_at`
+- `claimed_at`
+- `processed_at`
+- `error`
+
 ## Scheduling and Delivery Behavior
 
 ### Birthday scheduling rule
 - Send at exactly `09:00` in the user's local timezone.
-- Planner computes `due_at_utc` from birthday + timezone.
-- Planner uses configurable lookback window for recovery.
+- Projector computes `due_at_utc` from birthday + timezone.
+- Projector uses configurable lookback window to determine candidate years (`lookback year`, `current year`).
+
+### Projector behavior
+- DB trigger on `users` writes `user_change_events` on create/update/delete.
+- Projector claims pending events (`FOR UPDATE SKIP LOCKED`).
+- For each active user event:
+  - computes candidate years from lookback window and now
+  - upserts idempotent occurrences when due time falls in lookback window.
+- For deleted/missing users: marks event processed without creating occurrences.
+- On processing failure: stores event error and releases claim for retry.
 
 ### Planner behavior
-- Pages active users (`deleted_at IS NULL`).
-- Generates occurrences for years intersecting lookback window.
-- Upserts occurrences idempotently.
 - Claims due occurrences with `FOR UPDATE SKIP LOCKED`.
 - Enqueues claimed occurrences to SQS.
 - On enqueue failure, marks occurrence `failed`.
@@ -91,6 +108,7 @@ sequenceDiagram
   actor Client
   participant API as API
   participant DB as PostgreSQL
+  participant Projector as Projector
   participant Planner as Planner
   participant SQS as SQS Main Queue
   participant Worker as Worker
@@ -98,12 +116,15 @@ sequenceDiagram
 
   Client->>API: POST /user
   API->>DB: INSERT user
+  DB->>DB: Trigger INSERT -> user_change_events(created)
   DB-->>API: user row
   API-->>Client: 201
 
+  Projector->>DB: Claim pending user_change_events
+  Projector->>DB: Upsert notification_occurrences (idempotent)
+  Projector->>DB: Mark events processed
+
   loop Every planner interval
-    Planner->>DB: List active users
-    Planner->>DB: Upsert occurrence (unique logical key)
     Planner->>DB: Claim due occurrences (pending/failed, lookback window)
     DB-->>Planner: claimed occurrences
     Planner->>SQS: SendMessage(occurrenceId)
@@ -156,17 +177,19 @@ sequenceDiagram
   actor Client
   participant API as API
   participant DB as PostgreSQL
+  participant Projector as Projector
   participant Planner as Planner
 
   Client->>API: DELETE /user
   API->>DB: Soft delete user (set deleted_at)
+  DB->>DB: Trigger UPDATE -> user_change_events(deleted)
   DB-->>API: deleted
   API-->>Client: 204
 
-  Planner->>DB: List active users
-  Note over Planner,DB: deleted_at IS NOT NULL users are excluded
-  Planner->>DB: Generate/claim occurrences
-  DB-->>Planner: no occurrences for deleted user
+  Projector->>DB: Claim deleted event
+  Projector->>DB: Mark event processed (no new occurrence upsert)
+  Planner->>DB: Claim due occurrences
+  DB-->>Planner: no due rows for deleted user
 ```
 
 ## Local Infrastructure Notes
@@ -177,7 +200,8 @@ sequenceDiagram
   - visibility timeout and retention configuration
 
 ## Scalability Notes
-- Planner uses batched user paging + due-claim batch size.
+- Projector uses batched event claims + due-time upserts.
+- Planner uses due-claim batch size only (enqueue-only responsibility).
 - Queue decouples scheduling from outbound delivery throughput.
 - Worker can scale horizontally with DB claim guards.
 - Indexed due/status queries keep planner scans bounded.

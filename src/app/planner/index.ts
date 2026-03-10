@@ -3,7 +3,6 @@ import 'dotenv/config';
 import { loadConfig } from '../../infrastructure/config/env.js';
 import { createPool } from '../../infrastructure/db/pool.js';
 import { PostgresNotificationOccurrenceRepository } from '../../infrastructure/db/notification-occurrence-repository.js';
-import { PostgresUserRepository } from '../../infrastructure/db/user-repository.js';
 import { SqsDeliveryQueuePublisher } from '../../infrastructure/aws/sqs-delivery-queue.js';
 import { createLogger } from '../../infrastructure/logging/index.js';
 import { PlannerService } from './planner-service.js';
@@ -12,7 +11,6 @@ export async function startPlanner(): Promise<void> {
   const logger = createLogger('planner');
   const config = loadConfig();
   const pool = createPool(config.databaseUrl);
-  const userRepository = new PostgresUserRepository(pool);
   const occurrenceRepository = new PostgresNotificationOccurrenceRepository(pool);
   const queuePublisher = new SqsDeliveryQueuePublisher({
     queueUrl: config.sqsBirthdayQueueUrl,
@@ -21,10 +19,9 @@ export async function startPlanner(): Promise<void> {
     ...(config.awsAccessKeyId ? { accessKeyId: config.awsAccessKeyId } : {}),
     ...(config.awsSecretAccessKey ? { secretAccessKey: config.awsSecretAccessKey } : {})
   });
-  const plannerService = new PlannerService(userRepository, occurrenceRepository, queuePublisher, {
+  const plannerService = new PlannerService(occurrenceRepository, queuePublisher, {
     lookbackHours: config.plannerLookbackHours,
-    batchSize: config.plannerBatchSize,
-    userPageSize: config.plannerUserPageSize
+    batchSize: config.plannerBatchSize
   }, logger.child({ component: 'planner-service' }));
 
   const runOnce = async (): Promise<void> => {

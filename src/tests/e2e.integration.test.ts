@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildApp } from '../app/api/app.js';
 import { PlannerService, type DeliveryQueuePublisher } from '../app/planner/planner-service.js';
+import { ProjectorService } from '../app/projector/projector-service.js';
 import {
   WorkerService,
   type DeliveryQueueConsumer,
@@ -10,6 +11,7 @@ import {
 } from '../app/worker/worker-service.js';
 import { PostgresNotificationOccurrenceRepository } from '../infrastructure/db/notification-occurrence-repository.js';
 import { createPool } from '../infrastructure/db/pool.js';
+import { PostgresUserChangeEventRepository } from '../infrastructure/db/user-change-event-repository.js';
 import { PostgresUserRepository } from '../infrastructure/db/user-repository.js';
 
 const dbUrl = process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/birthday_service';
@@ -50,10 +52,11 @@ testSuite('end-to-end birthday flow', () => {
   const pool = createPool(dbUrl);
   const userRepository = new PostgresUserRepository(pool);
   const occurrenceRepository = new PostgresNotificationOccurrenceRepository(pool);
+  const userChangeEventRepository = new PostgresUserChangeEventRepository(pool);
   const app = buildApp({ userRepository });
 
   beforeEach(async () => {
-    await pool.query('TRUNCATE TABLE notification_occurrences, users CASCADE');
+    await pool.query('TRUNCATE TABLE user_change_events, notification_occurrences, users CASCADE');
   });
 
   afterAll(async () => {
@@ -75,13 +78,17 @@ testSuite('end-to-end birthday flow', () => {
     expect(createResponse.statusCode).toBe(201);
 
     const queue = new InMemoryDeliveryQueue();
-    const planner = new PlannerService(userRepository, occurrenceRepository, queue, {
+    const projector = new ProjectorService(userRepository, occurrenceRepository, userChangeEventRepository, {
       lookbackHours: 48,
-      batchSize: 200,
-      userPageSize: 500
+      batchSize: 200
+    });
+    const planner = new PlannerService(occurrenceRepository, queue, {
+      lookbackHours: 48,
+      batchSize: 200
     });
 
     const now = new Date('2026-12-15T01:00:00.000Z');
+    await projector.runOnce(now);
     const plannerSummary = await planner.runOnce(now);
 
     expect(plannerSummary).toEqual({ claimed: 1, enqueued: 1, failed: 0 });
@@ -125,13 +132,17 @@ testSuite('end-to-end birthday flow', () => {
     expect(createResponse.statusCode).toBe(201);
 
     const queue = new InMemoryDeliveryQueue();
-    const planner = new PlannerService(userRepository, occurrenceRepository, queue, {
+    const projector = new ProjectorService(userRepository, occurrenceRepository, userChangeEventRepository, {
       lookbackHours: 48,
-      batchSize: 200,
-      userPageSize: 500
+      batchSize: 200
+    });
+    const planner = new PlannerService(occurrenceRepository, queue, {
+      lookbackHours: 48,
+      batchSize: 200
     });
 
     const now = new Date('2026-12-15T10:00:00.000Z');
+    await projector.runOnce(now);
     const plannerSummary = await planner.runOnce(now);
 
     expect(plannerSummary).toEqual({ claimed: 1, enqueued: 1, failed: 0 });
@@ -183,13 +194,17 @@ testSuite('end-to-end birthday flow', () => {
     expect(deleteResponse.statusCode).toBe(204);
 
     const queue = new InMemoryDeliveryQueue();
-    const planner = new PlannerService(userRepository, occurrenceRepository, queue, {
+    const projector = new ProjectorService(userRepository, occurrenceRepository, userChangeEventRepository, {
       lookbackHours: 48,
-      batchSize: 200,
-      userPageSize: 500
+      batchSize: 200
+    });
+    const planner = new PlannerService(occurrenceRepository, queue, {
+      lookbackHours: 48,
+      batchSize: 200
     });
 
     const now = new Date('2026-12-15T01:00:00.000Z');
+    await projector.runOnce(now);
     const plannerSummary = await planner.runOnce(now);
 
     expect(plannerSummary).toEqual({ claimed: 0, enqueued: 0, failed: 0 });

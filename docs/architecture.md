@@ -192,6 +192,39 @@ sequenceDiagram
   DB-->>Planner: no due rows for deleted user
 ```
 
+### 4) Edit Birthday/Timezone
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Client
+  participant API as API
+  participant DB as PostgreSQL
+  participant Projector as Projector
+  participant Planner as Planner
+  participant SQS as SQS Main Queue
+  participant Worker as Worker
+  participant Outbound as Webhook Endpoint
+
+  Client->>API: PATCH /user {id, birthday/timezone}
+  API->>DB: UPDATE users
+  DB->>DB: Trigger INSERT -> user_change_events(updated)
+  DB-->>API: updated user row
+  API-->>Client: 200
+
+  Projector->>DB: Claim pending updated event
+  Projector->>DB: Read current user snapshot
+  Projector->>DB: Upsert occurrences for lookback/current year
+  Projector->>DB: Mark event processed
+
+  Planner->>DB: Claim due occurrences
+  Planner->>SQS: Enqueue due occurrence
+
+  Worker->>SQS: ReceiveMessage
+  Worker->>Outbound: POST "Hey, {full_name} it’s your birthday"
+  Worker->>DB: Mark sent
+  Worker-->>SQS: DeleteMessage
+```
+
 ## Local Infrastructure Notes
 - Queue topology is provisioned with Terraform (`infrastructure/terraform/localstack-sqs`):
   - main queue: `birthday-delivery-queue`
